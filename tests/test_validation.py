@@ -23,7 +23,7 @@ def test_validate_accepts_tiff_structured_arw(tmp_path):
     ("notes.txt", b"x" * 100_000),           # unsupported type
     ("tiny.ARW", b"II*\x00" + b"\0" * 100),   # truncated
     ("fake.ARW", b"\xff\xd8\xff" + b"\0" * 100_000),  # renamed JPEG
-])
+], ids=["unsupported-type", "truncated", "renamed-jpeg"])
 def test_validate_rejects_bad_inputs(tmp_path, name, content):
     p = tmp_path / name
     p.write_bytes(content)
