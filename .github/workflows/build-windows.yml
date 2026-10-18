@@ -1,0 +1,90 @@
+name: Build Windows app
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          architecture: x64
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: python -m pytest -q
+        env:
+          QT_QPA_PLATFORM: offscreen
+
+      - name: PyInstaller build
+        run: python -m PyInstaller packaging/sony_raw_converter.spec --noconfirm --clean
+
+      - name: Self-test packaged exe (no Python on PATH)
+        shell: pwsh
+        run: |
+          $st = Join-Path $env:RUNNER_TEMP "selftest"
+          $env:PATH = ($env:PATH -split ';' | Where-Object { $_ -notmatch 'Python' }) -join ';'
+          $env:QT_QPA_PLATFORM = "offscreen"
+          $p = Start-Process -FilePath "dist\SonyRawConverter\SonyRawConverter.exe" -ArgumentList "--self-test", "`"$st`"" -Wait -PassThru
+          Get-Content (Join-Path $st "self_test.json")
+          if ($p.ExitCode -ne 0) { exit 1 }
+
+      - name: Build installer (Inno Setup)
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+          $v = (Select-String -Path "src\version.py" -Pattern 'APP_VERSION = "(.+)"').Matches[0].Groups[1].Value
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$v" packaging\installer.iss
+          if ($LASTEXITCODE) { exit 1 }
+
+      - name: Silent install / uninstall test
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem installer_output\*.exe | Select-Object -First 1
+          $dir = Join-Path $env:RUNNER_TEMP "install test"
+          Start-Process $setup.FullName -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/CURRENTUSER", "/DIR=`"$dir`"" -Wait
+          if (-not (Test-Path "$dir\SonyRawConverter.exe")) { throw "Install failed" }
+          $env:QT_QPA_PLATFORM = "offscreen"
+          $p = Start-Process "$dir\SonyRawConverter.exe" -ArgumentList "--self-test", "`"$env:RUNNER_TEMP\st2`"" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { Get-Content "$env:RUNNER_TEMP\st2\self_test.json"; throw "Installed app self-test failed" }
+          Start-Process "$dir\unins000.exe" -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES" -Wait
+          Start-Sleep 3
+          if (Test-Path "$dir\SonyRawConverter.exe") { throw "Uninstall left files behind" }
+          Write-Host "Install, run and uninstall OK"
+
+      - name: Zip portable build
+        shell: pwsh
+        run: Compress-Archive -Path dist\SonyRawConverter -DestinationPath SonyRawConverter-portable.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SonyRawConverter-Setup
+          path: installer_output/*.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SonyRawConverter-portable
+          path: SonyRawConverter-portable.zip
+
+      - name: Publish GitHub release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            installer_output/*.exe
+            SonyRawConverter-portable.zip

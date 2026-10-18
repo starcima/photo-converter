@@ -1,0 +1,10 @@
+[project]
+name = "sony-raw-converter"
+version = "1.0.0"
+description = "Convert Sony Alpha .ARW RAW photos to high-quality JPG on Windows."
+requires-python = ">=3.11,<3.14"
+dependencies = ["PySide6==6.9.2", "rawpy==0.25.1", "Pillow==11.3.0", "numpy==2.3.3"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
