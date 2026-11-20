@@ -5,6 +5,25 @@ Status: **proposal awaiting approval** (prepared 2026-11-20). Prices were checke
 
 ---
 
+## 0. Revision 1: owner decisions (2026-11-20). These override the sections below where they conflict.
+
+1. **Repository:** a new **private** repo, `starcima/starcima-prospector`. The owner creates it on GitHub; Claude Code cannot create repositories from this session.
+2. **No AI required.** The app is fully rule-based: discovery, website detection, audits (Lighthouse/PSI plus deterministic HTML checks), scoring with written explanations, and outreach drafts from **templates** filled in with real audit findings. The visual design score uses objective heuristics (copyright year, legacy tech, missing viewport, font sprawl, low-resolution images, no HTTPS, table layouts) and is labelled "heuristic".
+   - Claude is an **optional add-on, off by default**. It appears only as an "Analyze with AI" button on a single prospect. It runs only when an API key is entered, has a hard monthly cap (default $5), and uses Claude Haiku 5.5 by default (about $0.002 per analysis).
+   - The app never needs Claude Code or a Claude subscription to run.
+3. **Hosting: local-first, portable.** A single `docker compose up` runs Postgres, the dashboard and the worker on the owner's own computer for $0. The same files deploy unchanged to **AWS Lightsail 2 GB (about $12/mo)** or any small VPS when it should run 24/7.
+   - Supabase is dropped. Plain Postgres runs in Docker, a built-in single-user login replaces Supabase Auth, and a nightly `pg_dump` handles backups.
+   - Cloudflare is used only optionally, for a free Cloudflare Tunnel to reach the dashboard remotely, not to run the app (its serverless runtime can't run Python or Chromium audits).
+4. **Markets (seeded, editable in Settings):**
+   - **DFW metro:** Dallas, Fort Worth, Arlington, Plano, Irving, Frisco, McKinney, Denton and surroundings.
+   - **Burleson / Johnson County:** Burleson, Cleburne, Crowley, Joshua, Mansfield.
+   - **San Antonio**, 50 mi radius.
+   - **Texas-wide** for new-business feeds.
+   - More Texas markets (Austin, Houston, Waco, …) can be added as named radius markets.
+5. **Paid APIs are minimized.** Overture, NPI, the Texas Comptroller feeds and PageSpeed Insights are free. Brave Search is optional and its $5 monthly credit covers about 1,000 lookups. Google Places is off. **Expected operating cost: $0 locally, about $12–20/mo hosted.**
+
+---
+
 ## 1. Development environment (inspected)
 
 | Item | Finding |
